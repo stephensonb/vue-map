@@ -1,0 +1,13 @@
+const ArcGISPlugin = require("@arcgis/webpack-plugin");
+
+module.exports = {
+  chainWebpack: config => {
+    config.plugin("arcgis").use(ArcGISPlugin, [
+      {
+        features: {
+          "3d": false
+        }
+      }
+    ]);
+  }
+};
