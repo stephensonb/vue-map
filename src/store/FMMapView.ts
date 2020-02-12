@@ -1,150 +1,227 @@
 import { loadModules } from "esri-loader";
 import Map from "esri/Map";
+import View from "esri/views/View";
 import MapView from "esri/views/MapView";
 import SceneView from "esri/views/SceneView";
 import { FMViewGroup } from "./FMViewGroup";
 
-interface EventListener {
+//
+// Interface for ArcGIS View event subscriber
+interface IViewEventSubscriber {
   target: __esri.Accessor;
   interactWatchHandle?: __esri.WatchHandle;
   propertyWatchHandle?: __esri.WatchHandle;
   stationaryWatchHandle?: __esri.WatchHandle;
 }
 
-export class EventDispatcher {
-  private static _theDispatcher: EventDispatcher | null = null;
-  private _talker: __esri.Accessor | null = null;
-  private _listeners: EventListener[] = [];
-  private _scheduleId: number | null = null;
+export class ViewEventDispatcher {
+  private static theViewEventDispatcher: ViewEventDispatcher | null = null;
+  private static _listener: IViewEventSubscriber | undefined = undefined;
+  private static _subscribers: IViewEventSubscriber[] = [];
+  private static _scheduleId: number | null = null;
 
-  static get Dispatcher() {
-    if (!this._theDispatcher) {
-      this._theDispatcher = new EventDispatcher();
-      return this._theDispatcher;
-    } else {
-      return this._theDispatcher;
-    }
+  public interactWatchHandle: __esri.WatchHandle | null = null;
+  public propertyWatchHandle: __esri.WatchHandle | null = null;
+  public stationaryWatchHandle: __esri.WatchHandle | null = null;
+  private constructor(public view: View) {}
+
+  // public static get Dispatcher() {
+  //   if (!ViewEventDispatcher.theViewEventDispatcher) {
+  //     ViewEventDispatcher.theViewEventDispatcher = new ViewEventDispatcher();
+  //   }
+  //   return ViewEventDispatcher.theViewEventDispatcher;
+  // }
+
+  public isSubscribed(target: View): boolean {
+    return ViewEventDispatcher._subscribers.find(subscriber =>
+      Object.is(subscriber.target, target)
+    )
+      ? true
+      : false;
   }
 
-  public subscribe(subscriber: __esri.Accessor) {
+  public async subscribe(target: View): Promise<void> {
     // add if listener not already subscribed
-    const index = this._listeners.findIndex(listener =>
-      Object.is(listener.target, subscriber)
-    );
-    this.addEvents(subscriber);
-    if (index < 0) {
-      this._listeners.push({ target: subscriber });
+    // const index = ViewEventDispatcher._subscribers.findIndex(subscriber =>
+    //   Object.is(subscriber.target, target)
+    // );
+    const dispatcher = this;
+    
+    subscriber.interactWatchHandle = subscriber.view.watch("interacting, animation", (newValue) => {
     }
+
+    // if (index < 0) {
+    //   ViewEventDispatcher._subscribers.push({ target: target });
+    //   ViewEventDispatcher.configureSubscriber(target);
+    // }
   }
 
-  public unsubscribe(subscriber: __esri.Accessor) {
-    const index = this._listeners.findIndex(listener =>
-      Object.is(listener.target, subscriber)
-    );
-    // remove propertyWatch events
-    this.removePropertyWatchers(this._listeners[index]);
-
+  public async unsubscribe(target: __esri.Accessor): Promise<void> {
     // remove the interact and animation watch events.
-    if (this._listeners[index].interactWatchHandle) {
-      this._listeners[index].interactWatchHandle!.remove();
-    }
+    const index = ViewEventDispatcher._subscribers.findIndex(subscriber =>
+      Object.is(subscriber.target, target)
+    );
 
-    // remove from list of listeners
     if (index >= 0) {
-      this._listeners.splice(index, 1);
+      // remove propertyWatch events
+      ViewEventDispatcher.removePropertyWatchers(target);
+      // remove interaction events
+      if (ViewEventDispatcher._subscribers[index].interactWatchHandle) {
+        ViewEventDispatcher._subscribers[index].interactWatchHandle?.remove();
+      }
+
+      // remove from list of listeners
+      ViewEventDispatcher._subscribers.splice(index, 1);
     }
   }
 
-  private addEvents(subscriber: __esri.Accessor) {
-    subscriber.watch("interacting,animation", this.interactHandler);
+  private static findEventSubscriber(
+    target: __esri.Accessor
+  ): IViewEventSubscriber | undefined {
+    return ViewEventDispatcher._subscribers.find(subscriber =>
+      Object.is(subscriber.target, target)
+    );
   }
 
-  private addPropertyWatchers(talker: __esri.Accessor) {
-    talker.watch("viewpoint", this.updateHandler);
-  }
-
-  private removePropertyWatchers(listener: EventListener | null | undefined) {
-    if (listener) {
-      listener.propertyWatchHandle && listener.propertyWatchHandle.remove();
-      listener.stationaryWatchHandle && listener.stationaryWatchHandle.remove();
+  private static configureSubscriber(subscriber: __esri.Accessor): void {
+    const evtSubscriber = ViewEventDispatcher.findEventSubscriber(subscriber);
+    if (evtSubscriber) {
+      evtSubscriber.interactWatchHandle = evtSubscriber.target.watch(
+        "interacting,animation",
+        ViewEventDispatcher.interactHandler
+      );
     }
   }
 
-  private interactHandler(
+  private static addPropertyWatchers(subscriber: IViewEventSubscriber): void {
+    if (subscriber) {
+      subscriber.propertyWatchHandle = subscriber.target.watch(
+        "viewpoint",
+        ViewEventDispatcher.updateHandler
+      );
+    }
+  }
+
+  private static removePropertyWatchers(
+    subscriber: IViewEventSubscriber | undefined
+  ): void {
+    if (subscriber) {
+      if (subscriber) {
+        subscriber.propertyWatchHandle &&
+          subscriber.propertyWatchHandle.remove();
+        subscriber.stationaryWatchHandle &&
+          subscriber.stationaryWatchHandle.remove();
+      }
+    }
+  }
+
+  private static interactHandler(
     newValue: any,
     oldValue: any,
     parameterName: string,
     target: any
-  ) {
-    if (this._talker) {
-      // If we have not started handling events start of prior interaction request (scheduleId not null)
-      // then ignore this event
-      if (this._scheduleId) {
-        return;
-      } else if (Object.is(this._talker, target)) {
-        // If interaction begins on another object, then switch the talker
-        this.switchTalker(target);
-      } else {
-        // clear the schedule ID indicating we are ready to start processing property change events
-        this._scheduleId = null;
-        return;
-      }
-    } else {
-      // new talker from idle state
-      this.setTalker(target);
+  ): void {
+    // ignore if new state is not interacting or animating (newValue === false)
+    if (!newValue) {
+      return;
     }
+    if (ViewEventDispatcher._listener && Object.is(ViewEventDispatcher._listener?.target, target) && )
+      if (ViewEventDispatcher._scheduleId) {
+        // If we have not started handling events start of prior interaction request (scheduleId not null)
+        // then ignore this event
+        ViewEventDispatcher._scheduleId = null;
+        return;
+      } else if (!ViewEventDispatcher._listener) {
+        // if no current listener, set new listener from idle state
+        ViewEventDispatcher.setListener(target);
+        return;
+      } else if (!Object.is(ViewEventDispatcher._listener, target)) {
+        // If interaction begins on another subscriber, then switch the listener
+        ViewEventDispatcher.switchListener(target);
+      }
   }
 
-  private setTalker(toSubscriber: __esri.Accessor) {
+  private static setListener(target: __esri.Accessor): void {
+    console.log("Set listener...");
+    const subscriber = ViewEventDispatcher.findEventSubscriber(target);
     // start updating at the next frame
-    this._scheduleId = setTimeout(() => {
-      this.addPropertyWatchers(toSubscriber);
-      this._talker = toSubscriber;
+    ViewEventDispatcher._scheduleId = setTimeout(() => {
+      ViewEventDispatcher.addPropertyWatchers(target);
+      ViewEventDispatcher._listener = subscriber;
     }, 0);
 
-    if (toSubscriber) {
-      toSubscriber.watch("stationary", this.stationaryHandler);
+    if (target) {
+      const evtSubscriber = ViewEventDispatcher.findEventSubscriber(target);
+      if (evtSubscriber) {
+        evtSubscriber.stationaryWatchHandle = target.watch(
+          "stationary",
+          ViewEventDispatcher.stationaryHandler
+        );
+      }
     }
   }
 
-  private switchTalker(toSubscriber: __esri.Accessor) {
-    if (this._talker) {
-      this.removePropertyWatchers(
-        this._listeners.find(listener =>
-          Object.is(listener.target, this._talker)
-        )
-      );
+  private static switchListener(subscriber: __esri.Accessor): void {
+    console.log("Switch listener...");
+    if (ViewEventDispatcher._listener) {
+      ViewEventDispatcher.removePropertyWatchers(ViewEventDispatcher._listener);
+      // if ((ViewEventDispatcher._listener as View).animation) {
+      //   (ViewEventDispatcher._listener as View).animation.finish();
+      // }
     }
-    this.setTalker(toSubscriber);
+    ViewEventDispatcher.setListener(subscriber);
   }
 
-  // Update the other listeners when a property changes
-  private updateHandler(
+  //
+  // Update the other subscribers when a property changes on the active listener
+  //
+
+  private static updateHandler(
     newValue: any,
     oldValue: any,
     propertyName: string,
     target: any
-  ) {
-    // make sure we are only handling update events for the current talker
-    if (Object.is(target, this._talker)) {
-      for (let listener of this._listeners) {
-        // Skip talker
-        if (!Object.is(listener.target, this._talker)) {
-          if (listener.target[propertyName]) {
-            listener.target[propertyName] = newValue;
+  ): void {
+    console.log("Property name " + propertyName + " value = " + newValue);
+    // make sure we are only handling update events for the current listener
+    if (Object.is(target, ViewEventDispatcher._listener)) {
+      for (let subscriber of ViewEventDispatcher._subscribers) {
+        // Skip listener on the update
+        if (!Object.is(subscriber.target, ViewEventDispatcher._listener)) {
+          if ((subscriber.target as MapView)[propertyName]) {
+            (subscriber.target as MapView)[propertyName] = newValue;
           }
         }
       }
     }
   }
 
-  // reset talker when current interaction/animation finishes
-  private stationaryHandler(
+  //
+  // reset listener when current interaction/animation finishes
+  //
+
+  private static stationaryHandler(
     newValue: any,
     oldValue: any,
     parameterName: string,
     target: any
-  ) {}
+  ): void {
+    console.log("Stationary listener...");
+    // only reset if we have a listener AND we are not still interacting with the listener
+    // (even though animation may have finished)
+    // !(ViewEventDispatcher._listener as View).interacting &&
+    // &&
+    //   !ViewEventDispatcher._scheduleId
+    if (Object.is(ViewEventDispatcher._listener, target)) {
+      console.log(
+        "Clear listener when stationary..ScheduleID = " +
+          ViewEventDispatcher._scheduleId
+      );
+
+      ViewEventDispatcher.removePropertyWatchers(ViewEventDispatcher._listener);
+      ViewEventDispatcher._listener = null;
+    }
+  }
 }
 
 export class FMMapView {
@@ -183,7 +260,6 @@ export class FMMapView {
     );
 
     await newObject.initialize();
-    newObject.sync = syncWithGroup;
     newObject._isFinalized = true;
     return newObject;
   }
@@ -193,9 +269,17 @@ export class FMMapView {
   }
 
   set sync(value: boolean) {
-    this._syncWithGroup = value;
     if (this._isFinalized) {
-      this.viewGroup.synchronizeViews();
+      if (this.activeView) {
+        if (value) {
+          this.activeView.constraints = { snapToZoom: false };
+          this.viewGroup.EventDispatcher.subscribe(this.activeView);
+        } else {
+          this.activeView.constraints = { snapToZoom: true };
+          this.viewGroup.EventDispatcher.unsubscribe(this.activeView);
+        }
+        this._syncWithGroup = value;
+      }
     }
   }
 
@@ -238,11 +322,8 @@ export class FMMapView {
   }
 
   public async toggleView() {
-    this._viewType === "2D" ? "3D" : "2D";
+    this._viewType = this._viewType === "2D" ? "3D" : "2D";
     await this.setViewType(this._viewType);
-    if (this._isFinalized) {
-      this.viewGroup.synchronizeViews();
-    }
   }
 
   get viewType() {
@@ -250,129 +331,36 @@ export class FMMapView {
   }
 
   public async setViewType(viewType: "2D" | "3D") {
-    const activeViewpoint = this.activeView?.viewpoint;
-    (this.activeView!.container as any) = null;
-    switch (viewType) {
-      case "2D":
-        if (activeViewpoint?.camera) {
-          this._camera = activeViewpoint?.camera;
-        }
-        this.view2D!.viewpoint = activeViewpoint!;
-        (this.view2D!.container as any) = this.id;
-        this.activeView = this.view2D;
-        break;
-      case "3D":
-        this.view3D!.viewpoint = activeViewpoint!;
-        if (this._camera) {
-          this.view3D!.camera = this._camera;
-        }
-        (this.view3D!.container as any) = this.id;
-        this.activeView = this.view3D;
-        break;
-    }
-  }
-
-  public async synchronizeView(view: FMMapView, otherViews: FMMapView[]) {
-    return await loadModules(["esri/core/watchUtils"]).then(
-      ([watchUtils]): any => {
-        // ignore request if this view is already synchronized
-        if (!view.activeView || this._interactWatcher) {
-          return;
-        }
-        let viewpointWatchHandle: __esri.WatchHandle | null;
-        let viewStationaryHandle: __esri.WatchHandle | null;
-        let interactWatcher: __esri.WatchHandle | null;
-        let otherViewInteractHandles: __esri.WatchHandle[] = [];
-        let scheduleId: number | null;
-
-        // clean up all watchers and reset
-        const clear = () => {
-          if (otherViewInteractHandles) {
-            for (let handle of otherViewInteractHandles) {
-              if (handle) {
-                handle.remove();
-              }
-            }
-            otherViewInteractHandles.length = 0;
+    if (this.activeView) {
+      const isSynced = this.viewGroup.EventDispatcher.isSubscribed(
+        this.activeView
+      );
+      // remove this view from synchronization
+      this.viewGroup.EventDispatcher.unsubscribe(this.activeView);
+      const activeViewpoint = this.activeView.viewpoint;
+      (this.activeView.container as any) = null;
+      switch (viewType) {
+        case "2D":
+          if (activeViewpoint?.camera) {
+            this._camera = activeViewpoint?.camera;
           }
-          viewpointWatchHandle && viewpointWatchHandle.remove();
-          viewStationaryHandle && viewStationaryHandle.remove();
-          scheduleId && clearTimeout(scheduleId);
-          viewpointWatchHandle = null;
-          viewStationaryHandle = null;
-          scheduleId = null;
-        };
-
-        // setup watchers and the callback for view changes
-        interactWatcher = view.activeView.watch(
-          "interacting, animation",
-          (newValue, oldValue, propertyName, target) => {
-            // console.log("Interact event received.....");
-            // console.log(
-            //   "Active Obj  :" + Object.is(target, this.activeView)
-            // );
-            // console.log("...Target   : " + (target as any).container.id);
-            // console.log("...Property : " + propertyName);
-            // console.log("...New Value: " + newValue);
-            // console.log("...Old Value: " + oldValue);
-            if (!newValue) {
-              return;
-            }
-            // If still updating viewpoints then ignore interact/animation change
-            if (viewpointWatchHandle || scheduleId) {
-              return;
-            }
-            // start updating views at the next tick/frame
-            scheduleId = setTimeout(() => {
-              scheduleId = null;
-              // Set watcher for viewpoint changes, update all other views when this view
-              // changes viewpoint
-              viewpointWatchHandle = view.activeView!.watch(
-                "viewpoint",
-                newValue => {
-                  for (let otherView of otherViews) {
-                    otherView.activeView!.viewpoint = newValue;
-                  }
-                }
-              );
-            }, 0);
-
-            // watch other views in the group for interaction.  If user starts interacting
-            // with those, then stop current event handling on this view by removing all watchers
-            otherViewInteractHandles = otherViews.map(otherView => {
-              return watchUtils.watch(
-                otherView.activeView,
-                "interacting, animation",
-                (value: any) => {
-                  if (value) {
-                    clear();
-                  }
-                }
-              );
-            });
-
-            // stop processing when view is stationary
-            viewStationaryHandle = watchUtils.whenTrue(
-              view.activeView,
-              "stationary",
-              () => {
-                for (let otherView of otherViews) {
-                  otherView.activeView!.viewpoint = view.activeView!.viewpoint;
-                }
-                clear();
-              }
-            );
+          this.view2D!.viewpoint = activeViewpoint!;
+          (this.view2D!.container as any) = this.id;
+          this.activeView = this.view2D;
+          break;
+        case "3D":
+          this.view3D!.viewpoint = activeViewpoint!;
+          if (this._camera) {
+            this.view3D!.camera = this._camera;
           }
-        ); // end interactWatcher
-
-        return {
-          remove: function() {
-            this.remove = function() {};
-            clear();
-            interactWatcher && interactWatcher.remove();
-          }
-        };
+          (this.view3D!.container as any) = this.id;
+          this.activeView = this.view3D;
+          break;
       }
-    );
+      if (this.activeView && isSynced) {
+        // if previous view was being synchronized, then sync this view
+        this.viewGroup.EventDispatcher.subscribe(this.activeView);
+      }
+    }
   }
 }

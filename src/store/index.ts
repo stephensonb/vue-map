@@ -24,29 +24,6 @@ export default new Vuex.Store({
     nextViewGroupId: 1 as number
   },
   mutations: {
-    setViewProperty(state, value: { propertyName: string; value: any }) {
-      if (state.activeGroup && state.activeGroup[value.propertyName]) {
-        state.activeGroup[value.propertyName] = value.value;
-      }
-    },
-    setSyncWithGroup(
-      state,
-      value: { groupId: string; viewId: string; value: boolean }
-    ) {
-      const view = findView(state.viewGroups, value.groupId, value.viewId);
-      if (view) {
-        view.sync = value.value;
-      }
-    },
-    setViewType(
-      state,
-      value: { groupId: string; viewId: string; viewType: "2D" | "3D" }
-    ) {
-      const view = findView(state.viewGroups, value.groupId, value.viewId);
-      if (view) {
-        view.setViewType(value.viewType);
-      }
-    },
     setActiveGroup(state, group: any) {
       state.activeGroup = group;
     },
@@ -59,11 +36,12 @@ export default new Vuex.Store({
       const viewGroup = new FMViewGroup(
         "view-group-" + state.nextViewGroupId++
       );
-      commit("addViewGroup", viewGroup);
+      //      commit("addViewGroup", viewGroup);
+      state.viewGroups.push(viewGroup);
       if (!state.activeGroup) {
         commit("setActiveGroup", viewGroup);
       }
-      return await viewGroup;
+      return viewGroup;
     },
     async addView({ state, commit }, groupId?: string) {
       const group =

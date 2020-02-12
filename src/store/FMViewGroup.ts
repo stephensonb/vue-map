@@ -1,55 +1,16 @@
-import { FMMapView } from "./FMMapView";
+import { FMMapView, ViewEventDispatcher } from "./FMMapView";
 
 export class FMViewGroup {
-  public views: FMMapView[] = [];
-  public focusedView: FMMapView | undefined;
   private nextViewId = 1;
   private syncHandles: any;
+
+  public views: FMMapView[] = [];
+  public focusedView: FMMapView | undefined;
+
   constructor(public id: string) {}
 
-  // Sync all other views in the group
-  public async goTo(target: any) {
-    for (let view of this.views) {
-      if (view.activeView) {
-        if (view.sync && !view.activeView.interacting) {
-          if (view.activeView.animation) {
-            if (view.activeView.animation.state !== "finished") {
-              continue;
-            }
-          }
-          await view.activeView.goTo(target, { animate: false });
-        }
-      }
-    }
-  }
-
-  public async removeWatchers() {
-    if (this.syncHandles) {
-      for (let syncHandle of this.syncHandles) {
-        const handle = await syncHandle;
-        if (handle && handle.remove) {
-          handle.remove();
-        }
-      }
-    }
-  }
-
-  public async synchronizeViews() {
-    await this.removeWatchers();
-    if (this.syncHandles) {
-      this.syncHandles.length = 0;
-    }
-    this.syncHandles = this.views.map(async (view, idx, views) => {
-      if (view.sync) {
-        let otherViews = Array.from(views);
-        // remove the current view being mapped from the array of views to sync
-        otherViews.splice(idx, 1);
-        otherViews = otherViews.filter(
-          otherView => otherView.sync && otherView.activeView
-        );
-        return await view.synchronizeView(view, otherViews);
-      }
-    });
+  public get EventDispatcher() {
+    return ViewEventDispatcher.Dispatcher;
   }
 
   public async addView() {
@@ -61,20 +22,22 @@ export class FMViewGroup {
       { basemap: "streets" },
       { basemap: "topo-vector", ground: "world-elevation" }
     );
+    // sync the view with the group as default
+    mapView.sync = true;
     this.views.push(mapView);
     if (!this.focusedView) {
       this.focusedView = mapView;
     }
-    await this.synchronizeViews();
   }
 
   public async removeView(id: string) {
     const index = this.views.findIndex(view => view.id === id);
     if (index >= 0) {
+      const view = this.views[index];
+      // remove syncing for this view
+      view.sync = false;
       // remove the view
       this.views.splice(index, 1);
-      // re-synchronize the other views
-      await this.synchronizeViews();
     }
   }
 }

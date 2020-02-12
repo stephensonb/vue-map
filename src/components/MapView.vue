@@ -35,8 +35,8 @@ export default Vue.extend({
     return {};
   },
   methods: {
-    toggleView() {
-      this.view.toggleView();
+    async toggleView() {
+      await this.view.toggleView();
     },
     toggleSync() {
       this.view.toggleSync();
@@ -53,8 +53,15 @@ export default Vue.extend({
       return this.view.id + "-info";
     }
   },
+  watch: {
+    view() {
+      //this.view.activeView.container = this.view.id;
+    }
+  },
   mounted() {
-    this.view.activeView.container = this.view.id;
+    if (this.view.activeView) {
+      this.view.activeView.container = this.view.id;
+    }
   }
 });
 </script>
