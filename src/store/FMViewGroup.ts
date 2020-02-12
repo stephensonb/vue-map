@@ -1,16 +1,19 @@
-import { FMMapView, ViewEventDispatcher } from "./FMMapView";
+import { FMMapView } from "./FMMapView";
+import { ViewEventDispatcher } from "./ViewEventDispatcher";
 
 export class FMViewGroup {
   private nextViewId = 1;
-  private syncHandles: any;
+  private _viewEventDispatcher: ViewEventDispatcher;
 
   public views: FMMapView[] = [];
   public focusedView: FMMapView | undefined;
 
-  constructor(public id: string) {}
+  constructor(public id: string) {
+    this._viewEventDispatcher = new ViewEventDispatcher();
+  }
 
   public get EventDispatcher() {
-    return ViewEventDispatcher.Dispatcher;
+    return this._viewEventDispatcher;
   }
 
   public async addView() {
