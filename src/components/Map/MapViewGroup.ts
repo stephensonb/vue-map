@@ -1,15 +1,19 @@
-import { FMMapView } from "./FMMapView";
-import { ViewEventDispatcher } from "./ViewEventDispatcher";
+import { MapViewer } from './MapViewer';
+import { MapViewEventDispatcher } from './MapViewEventDispatcher';
 
-export class FMViewGroup {
+//
+// MapViewGroup controls a set of map views and coordinates synchronization between them
+//
+
+export class MapViewGroup {
   private nextViewId = 1;
-  private _viewEventDispatcher: ViewEventDispatcher;
+  private _viewEventDispatcher: MapViewEventDispatcher;
 
-  public views: FMMapView[] = [];
-  public focusedView: FMMapView | undefined;
+  public views: MapViewer[] = [];
+  public focusedView: MapViewer | undefined;
 
   constructor(public id: string) {
-    this._viewEventDispatcher = new ViewEventDispatcher();
+    this._viewEventDispatcher = new MapViewEventDispatcher();
   }
 
   public get EventDispatcher() {
@@ -18,15 +22,17 @@ export class FMViewGroup {
 
   public async addView() {
     // console.log("Create new view...");
-    const mapView = await FMMapView.create(
-      this.id + "-view-" + this.nextViewId++,
+    const mapView = await MapViewer.create(
+      this.id + '-view-' + this.nextViewId++,
       this,
-      true,
-      { basemap: "streets" },
-      { basemap: "topo-vector", ground: "world-elevation" }
+      { basemap: 'osm' },
+      { basemap: 'osm', ground: 'world-elevation' }
     );
+
     // sync the view with the group as default
     mapView.sync = true;
+
+    // Add the map view to the group list
     this.views.push(mapView);
     if (!this.focusedView) {
       this.focusedView = mapView;

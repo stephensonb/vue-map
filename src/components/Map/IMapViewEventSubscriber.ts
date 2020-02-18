@@ -3,7 +3,7 @@ import View from "esri/views/View";
 //
 // Interface for ArcGIS View event subscriber
 //
-export interface IViewEventSubscriber {
+export interface IMapViewEventSubscriber {
   target: View;
   scheduleId?: number;
   interactWatchHandle?: __esri.WatchHandle;

@@ -1,15 +1,16 @@
-import Vue from "vue";
-import Vuex from "vuex";
-import { FMMapView } from "./FMMapView";
-import { FMViewGroup } from "./FMViewGroup";
+import Vue from 'vue';
+import Vuex from 'vuex';
+import { MapViewer } from '@/components/Map';
+import { MapViewGroup } from '@/components/Map';
+import { TelemetryDataProvider } from './telemetry/telemetry';
 
 Vue.use(Vuex);
 
 const findView = (
-  groups: FMViewGroup[],
+  groups: MapViewGroup[],
   groupId: string,
   viewId: string
-): FMMapView | undefined => {
+): MapViewer | undefined => {
   const group = groups.find(group => group.id === groupId);
   if (group) {
     return group.views.find(view => view.id === viewId);
@@ -19,9 +20,10 @@ const findView = (
 
 export default new Vuex.Store({
   state: {
-    viewGroups: [] as FMViewGroup[],
-    activeGroup: null as FMViewGroup | null,
-    nextViewGroupId: 1 as number
+    viewGroups: [] as MapViewGroup[],
+    activeGroup: null as MapViewGroup | null,
+    nextViewGroupId: 1 as number,
+    telemetryDataProvider: new TelemetryDataProvider(),
   },
   mutations: {
     setActiveGroup(state, group: any) {
@@ -29,39 +31,33 @@ export default new Vuex.Store({
     },
     addViewGroup(state, group) {
       state.viewGroups.push(group);
-    }
+    },
   },
   actions: {
     async addViewGroup({ state, commit }) {
-      const viewGroup = new FMViewGroup(
-        "view-group-" + state.nextViewGroupId++
-      );
+      const viewGroup = new MapViewGroup('view-group-' + state.nextViewGroupId++);
       //      commit("addViewGroup", viewGroup);
       state.viewGroups.push(viewGroup);
       if (!state.activeGroup) {
-        commit("setActiveGroup", viewGroup);
+        commit('setActiveGroup', viewGroup);
       }
       return viewGroup;
     },
     async addView({ state, commit }, groupId?: string) {
-      const group =
-        state.activeGroup ||
-        state.viewGroups.find(group => group.id === groupId);
+      const group = state.activeGroup || state.viewGroups.find(group => group.id === groupId);
       return await group?.addView();
-    }
+    },
   },
   getters: {
-    focusedView: state => (groupId?: string): FMMapView | undefined => {
-      const group =
-        state.activeGroup ||
-        state.viewGroups.find(group => group.id === groupId);
+    focusedView: state => (groupId?: string): MapViewer | undefined => {
+      const group = state.activeGroup || state.viewGroups.find(group => group.id === groupId);
       return group?.focusedView;
     },
-    view: state => (groupId: string, viewId: string): FMMapView | undefined => {
+    view: state => (groupId: string, viewId: string): MapViewer | undefined => {
       return findView(state.viewGroups, groupId, viewId);
     },
     views: state => state.activeGroup?.views,
-    activeGroup: state => state.activeGroup
+    activeGroup: state => state.activeGroup,
   },
-  modules: {}
+  modules: {},
 });

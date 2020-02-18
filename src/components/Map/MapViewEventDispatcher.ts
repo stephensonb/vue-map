@@ -1,31 +1,30 @@
-import MapView from "esri/views/MapView";
-import View from "esri/views/View";
-import { IViewEventSubscriber } from "./IViewEventSubscriber";
+import MapView from 'esri/views/MapView';
+import View from 'esri/views/View';
+import { IMapViewEventSubscriber } from './IMapViewEventSubscriber';
 
-export class ViewEventDispatcher {
-  private activeListener: IViewEventSubscriber | undefined = undefined;
-  private subscribers: IViewEventSubscriber[] = [];
+//
+// MapViewEventDispatcher watches a set of maps belonging to a mapviewgroup and responds
+// to events on the maps within the group to coordinate synchronization of the maps within the view.
+//
+
+export class MapViewEventDispatcher {
+  private activeListener: IMapViewEventSubscriber | undefined = undefined;
+  private subscribers: IMapViewEventSubscriber[] = [];
 
   public constructor() {}
 
   public isSubscribed(target: View): boolean {
-    return this.subscribers.find(subscriber =>
-      Object.is(subscriber.target, target)
-    )
-      ? true
-      : false;
+    return this.subscribers.find(subscriber => Object.is(subscriber.target, target)) ? true : false;
   }
 
   public async subscribe(target: View): Promise<void> {
     // add if listener not already subscribed
-    let subscriber = this.subscribers.find(subscriber =>
-      Object.is(subscriber.target, target)
-    );
+    let subscriber = this.subscribers.find(subscriber => Object.is(subscriber.target, target));
 
     if (!subscriber) {
       subscriber = { target };
       subscriber.interactWatchHandle = target.watch(
-        "interacting,animation",
+        'interacting,animation',
         this.interactHandler(this, subscriber)
       );
       this.subscribers.push(subscriber);
@@ -34,9 +33,7 @@ export class ViewEventDispatcher {
 
   public async unsubscribe(target: View): Promise<void> {
     // remove the interact and animation watch events.
-    const index = this.subscribers.findIndex(subscriber =>
-      Object.is(subscriber.target, target)
-    );
+    const index = this.subscribers.findIndex(subscriber => Object.is(subscriber.target, target));
     if (index < 0) {
       return;
     }
@@ -51,34 +48,25 @@ export class ViewEventDispatcher {
     }
   }
 
-  private findEventSubscriber(target: View): IViewEventSubscriber | undefined {
-    return this.subscribers.find(subscriber =>
-      Object.is(subscriber.target, target)
-    );
-  }
-
-  private addPropertyWatchers(subscriber: IViewEventSubscriber): void {
+  private addPropertyWatchers(subscriber: IMapViewEventSubscriber): void {
     if (subscriber) {
       subscriber.propertyWatchHandle = subscriber.target.watch(
-        "viewpoint",
+        'viewpoint',
         this.updateHandler(this, subscriber)
       );
     }
   }
 
-  private removePropertyWatchers(
-    subscriber: IViewEventSubscriber | undefined
-  ): void {
+  private removePropertyWatchers(subscriber: IMapViewEventSubscriber | undefined): void {
     if (subscriber) {
       subscriber.propertyWatchHandle && subscriber.propertyWatchHandle.remove();
-      subscriber.stationaryWatchHandle &&
-        subscriber.stationaryWatchHandle.remove();
+      subscriber.stationaryWatchHandle && subscriber.stationaryWatchHandle.remove();
       subscriber.propertyWatchHandle = undefined;
       subscriber.stationaryWatchHandle = undefined;
     }
   }
 
-  private setListener(subscriber: IViewEventSubscriber): void {
+  private setListener(subscriber: IMapViewEventSubscriber): void {
     // start updating at the next frame
     subscriber.scheduleId = setTimeout(() => {
       this.addPropertyWatchers(subscriber);
@@ -86,12 +74,12 @@ export class ViewEventDispatcher {
     }, 0);
     subscriber.scheduleId = undefined;
     subscriber.stationaryWatchHandle = subscriber.target.watch(
-      "stationary",
+      'stationary',
       this.stationaryHandler(this, subscriber)
     );
   }
 
-  private switchListener(subscriber: IViewEventSubscriber): void {
+  private switchListener(subscriber: IMapViewEventSubscriber): void {
     if (this.activeListener) {
       this.removePropertyWatchers(this.activeListener);
       if ((this.activeListener.target as View).animation) {
@@ -119,8 +107,8 @@ export class ViewEventDispatcher {
   //
 
   private interactHandler = (
-    dispatcher: ViewEventDispatcher,
-    subscriber: IViewEventSubscriber
+    dispatcher: MapViewEventDispatcher,
+    subscriber: IMapViewEventSubscriber
   ) => {
     return (newValue: any): void => {
       // ignore if new state is not interacting or animating (newValue === false)
@@ -133,9 +121,7 @@ export class ViewEventDispatcher {
         // if no current listener, set new listener from idle state
         dispatcher.setListener(subscriber);
         return;
-      } else if (
-        !Object.is(dispatcher.activeListener.target, subscriber.target)
-      ) {
+      } else if (!Object.is(dispatcher.activeListener.target, subscriber.target)) {
         // Switch listeners if another subscriber was the active listener
         dispatcher.switchListener(subscriber);
       }
@@ -147,14 +133,10 @@ export class ViewEventDispatcher {
   //
 
   private updateHandler = (
-    dispatcher: ViewEventDispatcher,
-    subscriber: IViewEventSubscriber
+    dispatcher: MapViewEventDispatcher,
+    subscriber: IMapViewEventSubscriber
   ) => {
-    return async (
-      newValue: any,
-      oldValue: any,
-      propertyName: string
-    ): Promise<void> => {
+    return async (newValue: any, oldValue: any, propertyName: string): Promise<void> => {
       // make sure we are only handling update events for the current listener
       if (Object.is(subscriber.target, dispatcher.activeListener?.target)) {
         await dispatcher.updateViews(propertyName, newValue, subscriber.target);
@@ -167,8 +149,8 @@ export class ViewEventDispatcher {
   //
 
   private stationaryHandler = (
-    dispatcher: ViewEventDispatcher,
-    subscriber: IViewEventSubscriber
+    dispatcher: MapViewEventDispatcher,
+    subscriber: IMapViewEventSubscriber
   ) => {
     return async (
       newValue: any,
@@ -179,7 +161,7 @@ export class ViewEventDispatcher {
       // only reset if we have a listener AND we are not still interacting with the listener
       // (even though animation may have finished)
       await dispatcher.updateViews(
-        "viewpoint",
+        'viewpoint',
         (subscriber.target as MapView).viewpoint,
         subscriber.target
       );
