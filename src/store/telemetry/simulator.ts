@@ -64,7 +64,7 @@ export class Simulator {
       }
 
       // only publish if provider is ready
-      if (this._publishHandle.ready) {
+      if (this._publishHandle.ready()) {
         simulator._publishHandle.publish(frameData);
       }
       busy = false;
